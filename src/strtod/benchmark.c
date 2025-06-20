@@ -535,6 +535,7 @@ static void strtod_func_register_all(void) {
     strtod_func_register(david_gay)
     strtod_func_register(google)
     strtod_func_register(lemire)
+    strtod_func_register(wf)
 #ifndef _MSC_VER
     strtod_func_register(ryu)
 #endif
