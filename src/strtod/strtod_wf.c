@@ -73,16 +73,15 @@ static const double __power_of_10[309] = {
 	1e305,	1e306,	1e307,	1e308
 };
 
+#define f	100000000000000000
+
 double strtod_wf(const char *cursor, size_t len, char **end)
 {
 	unsigned int digit;
 	long long exp = 0;
 	long long mant;
-	int figures;
 	int minus;
 	double n;
-
-	*end = (char *)cursor;
 
 	minus = (*cursor == '-');
 	if (minus)
@@ -91,66 +90,69 @@ double strtod_wf(const char *cursor, size_t len, char **end)
 	mant = *cursor - '0';
 	if (mant >= 1 && mant <= 9)
 	{
-		figures = 1;
-		cursor++;
+		int figures = 1;
+
 		while (1)
 		{
-			digit = (unsigned int)(*cursor - '0');
+			digit = (unsigned int)(cursor[figures] - '0');
 			if (digit <= 9 && figures < 18)
 			{
 				mant = 10 * mant + digit;
 				figures++;
-				cursor++;
 			}
 			else
 				break;
 		}
 
-		while (isdigit(*cursor))
+		cursor += figures;
+		if (digit <= 9)
 		{
-			exp++;
-			cursor++;
+			do
+				exp++;
+			while (isdigit(cursor[exp]));
+			cursor += exp;
 		}
 	}
 	else if (mant == 0)
-	{
-		figures = 0;
 		cursor++;
-	}
 	else
+	{
+		*end = (char *)(minus ? cursor - 1 : cursor);
 		return 0.0;
+	}
 
 	if (*cursor == '.')
 	{
-		const char *frac;
-
 		cursor++;
-		if (!isdigit(*cursor))
-			return 0.0;
-
-		frac = cursor;
-		if (figures == 0)
+		if (isdigit(*cursor))
 		{
-			while (*cursor == '0')
-				cursor++;
-		}
+			const char *frac = cursor;
 
-		while (1)
-		{
-			digit = (unsigned int)(*cursor - '0');
-			if (digit <= 9 && figures < 18)
+			while (1)
 			{
-				mant = 10 * mant + digit;
-				figures++;
-				cursor++;
+				digit = (unsigned int)(*cursor - '0');
+				if (digit <= 9 && mant < f)
+				{
+					mant = 10 * mant + digit;
+					cursor++;
+				}
+				else
+					break;
 			}
-			else
-				break;
-		}
 
-		exp -= cursor - frac;
-		while (isdigit(*cursor))
-			cursor++;
+			exp += frac - cursor;
+			if (digit <= 9)
+			{
+				do
+					cursor++;
+				while (isdigit(*cursor));
+			}
+		}
+		else
+		{
+			cursor--;
+			goto finish;
+		}
 	}
 
 	if (*cursor == 'E' || *cursor == 'e')
@@ -163,71 +165,68 @@ double strtod_wf(const char *cursor, size_t len, char **end)
 		if (sign == '+' || sign == '-')
 			cursor++;
 
-		if (!isdigit(*cursor))
-			return 0.0;
-
 		e = *cursor - '0';
-		cursor++;
-		while (1)
+		if (e >= 0 && e <= 9)
 		{
-			digit = (unsigned int)(*cursor - '0');
-			if (digit <= 9 && e < 100000000000000000)
-			{
-				e = 10 * e + digit;
-				cursor++;
-			}
-			else
-				break;
-		}
-
-		while (isdigit(*cursor))
 			cursor++;
+			while (1)
+			{
+				digit = (unsigned int)(*cursor - '0');
+				if (digit <= 9 && e < f)
+				{
+					e = 10 * e + digit;
+					cursor++;
+				}
+				else
+					break;
+			}
 
-		if (sign == '-')
-			e = -e;
+			if (digit <= 9)
+			{
+				do
+					cursor++;
+				while (isdigit(*cursor));
+			}
 
-		exp += e;
-	}
+			if (sign == '-')
+				e = -e;
 
-	if (exp != 0 && figures != 0)
-	{
-		while (exp > 0 && figures < 18)
-		{
-			mant *= 10;
-			figures++;
-			exp--;
-		}
-
-		while (exp < 0 && mant % 10 == 0)
-		{
-			mant /= 10;
-			figures--;
-			exp++;
-		}
-	}
-
-	n = mant;
-	if (exp != 0 && figures != 0)
-	{
-		if (exp > 291)
-			n = INFINITY;
-		else if (exp > 0)
-			n *= __power_of_10[exp];
-		else if (exp > -309)
-			n /= __power_of_10[-exp];
-		else if (exp > -324 - figures)
-		{
-			n /= __power_of_10[-exp - 308];
-			n /= __power_of_10[308];
+			exp += e;
 		}
 		else
-			n = 0.0;
+		{
+			cursor--;
+			if (*cursor == sign)
+				cursor--;
+		}
 	}
 
-	if (minus)
-		n = -n;
+finish:
+	n = mant;
+	if (exp != 0 && mant != 0)
+	{
+		if (exp < 0)
+		{
+			if (exp > -309)
+				n /= __power_of_10[-exp];
+			else if (exp > -324 - 18)
+			{
+				n /= __power_of_10[-exp - 308];
+				n /= __power_of_10[308];
+			}
+			else
+				n = 0.0;
+		}
+		else
+		{
+			if (exp <= 308)
+				n *= __power_of_10[exp];
+			else
+				n = INFINITY;
+		}
+	}
 
 	*end = (char *)cursor;
-	return n;
+	return minus ? -n : n;
 }
 
