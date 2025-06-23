@@ -121,31 +121,36 @@ double strtod_wf(const char *cursor, size_t len, char **end)
 		return 0.0;
 	}
 
-	if (*cursor == '.' && isdigit(cursor[1]))
+	if (*cursor == '.')
 	{
 		const char *frac;
 
 		cursor++;
-		frac = cursor;
-		while (1)
+		if (isdigit(*cursor))
 		{
-			digit = (unsigned int)(*cursor - '0');
-			if (digit <= 9 && mant < f)
+			frac = cursor;
+			while (1)
 			{
-				mant = 10 * mant + digit;
-				cursor++;
+				digit = (unsigned int)(*cursor - '0');
+				if (digit <= 9 && mant < f)
+				{
+					mant = 10 * mant + digit;
+					cursor++;
+				}
+				else
+					break;
 			}
-			else
-				break;
-		}
 
-		exp += frac - cursor;
-		if (digit <= 9)
-		{
-			do
-				cursor++;
-			while (isdigit(*cursor));
+			exp += frac - cursor;
+			if (digit <= 9)
+			{
+				do
+					cursor++;
+				while (isdigit(*cursor));
+			}
 		}
+		else
+			cursor--;
 	}
 
 	if (*cursor == 'E' || *cursor == 'e')
